@@ -84,7 +84,6 @@ model Message {
   text          String?
   type          MessageType @default(TEXT)
   blob_location String?
-  file_type     String?
 
   // Disappearing & Scheduling
   expiresAt   DateTime?
@@ -108,7 +107,6 @@ model Message {
 
 enum MessageType {
   TEXT
-  ATTACHMENT
   VOICENOTE
   PDF
 }
