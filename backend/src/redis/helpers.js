@@ -26,5 +26,22 @@ export const redisHelpers = {
         } catch (error) {
             console.error('Redis DelCache Error:', error);
         }
+    },
+
+    async incr(key) {
+        try {
+            return await redisClient.incr(key);
+        } catch (error) {
+            console.error('Redis Incr Error:', error);
+            return null;
+        }
+    },
+
+    async expire(key, seconds) {
+        try {
+            await redisClient.expire(key, seconds);
+        } catch (error) {
+            console.error('Redis Expire Error:', error);
+        }
     }
 };
