@@ -5,9 +5,10 @@ import { v4 } from 'uuid';
 import { prisma } from './lib/prisma.js'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateBucketCommand, GetObjectCommand} from '@aws-sdk/client-s3';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 dotenv.config();
 
@@ -42,7 +43,14 @@ const upload = multer({
             cb(null, { fieldName: file.fieldname });
         },
         key: function (req, file, cb) {
-            cb(null, `${v4()}-${Date.now().toString()}`)
+            const fileType = file.mimetype
+            if (fileType == 'application/pdf') {
+                cb(null, `pdf/${v4()}-${Date.now().toString()}`)
+            } else if (fileType == 'text/plain'){
+                cb(null, `text/${v4()}-${Date.now().toString()}`)
+            } else {
+                cb(null, `voicenote/${v4()}-${Date.now().toString()}`)
+            }
         }
     }),
     fileFilter: (req, file, cb) => {
@@ -543,7 +551,113 @@ app.post('/chat/message', upload.single('attachment'), async (req, res) => {
         error: null
     })
 })
-// app.get('/chat/message')
+
+app.get('/chat/message', async(req, res) => {
+    const {chatId, limit = 20, offset = 0} = req.query;
+    const userId = req.user.userId;
+
+    if(!chatId) {
+        return res.status(400).send({
+            success: false,
+            data: null,
+            error: "chatId is a required parameter"
+        })
+    }
+
+    const chat = await prisma.chat.findUnique({
+        where: {
+            id: chatId,
+            users: {
+                some: {
+                    userId: userId,
+                }
+            }
+        }
+    })
+
+    if(!chat) {
+        return res.status(404).send({
+            success: false,
+            data: null,
+            error: "user is not the member of this chat"
+        })
+    }
+
+    let take = 20;
+    try {
+        take = parseInt(limit)
+    } catch (err) {}
+
+    let skip = 20;
+    try {
+        skip = parseInt(offset)
+    } catch (err) {}
+
+    const messages = await prisma.message.findMany({
+        where: {
+            chat_id: chatId,
+        },
+        take: take,
+        skip: skip,
+        orderBy: {
+            created_at: 'desc',
+        },
+        include: {
+            sender: {
+                select: {
+                    id: true,
+                    publicKey: true,
+                    username: true,
+                }
+            }
+        }
+    })
+
+    async function processMessageDecryption(message) {
+        let presignedUrl = null;
+        let decryptedText = null;
+
+        if(message.text && message.sender.publicKey) {
+            try {
+                const publicKey = message.sender.publicKey;
+                decryptedText = crypto.publicDecrypt(publicKey, Buffer.from(message.text, 'base64')).toString('utf-8')
+            } catch (err) {
+                console.log(`error occured in decrypting the message with id : ${message.id}`)
+            }
+        }
+
+        if(message.blob_location) {
+            try {
+                const generatePresignedCommand = new GetObjectCommand({
+                    Bucket: s3BucketName,
+                    Key: message.blob_location
+                });
+                presignedUrl = await getSignedUrl(s3, generatePresignedCommand);
+            } catch (err) {
+
+                console.log(`error in generating the presigned url for message : ${message.id}`)
+            }
+        }
+
+        return {
+            ...message,
+            presignedUrl,
+            decryptedText
+        }
+    }
+
+    const decryptedMessages = await Promise.all(
+        messages.map(
+            async(message)=>processMessageDecryption(message)
+        )
+    )
+
+    return res.status(200).send({
+        data: decryptedMessages,
+        error: null,
+        success: true
+    })
+})
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
