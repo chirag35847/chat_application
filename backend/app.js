@@ -183,6 +183,210 @@ app.get('/user/search', async (req, res) => {
     })
 })
 
+app.post('/chat', async (req, res) => {
+    const { userIds, name } = req.body;
+    const loggedInUserId = req.user.userId;
+
+
+    if (!userIds || !Array.isArray(userIds) || userIds.length == 0) {
+        return res.status(400).send({
+            "success": false,
+            "data": null,
+            "error": "no users to create the chat with"
+        })
+    }
+
+    const isGroupChat = userIds.length > 1;
+    if (isGroupChat && !name) {
+        return res.status(400).send({
+            "success": false,
+            "data": null,
+            "error": "chat name is required in case of group chat"
+        })
+    }
+
+    if (isGroupChat) {
+        const blockedUser = await prisma.blockedUser.findUnique({
+            where: {
+                OR: [
+                    {
+                        blockedId: req.user.userId,
+                        blockerId: userIds[0],
+                    },
+                    {
+                        blockerId: req.user.userId,
+                        blockedId: userIds[0],
+                    }
+                ]
+            }
+        })
+
+        if (blockedUser) {
+            const errorMessage = "you have blocked the other user"
+            if (blockedUser.blockerId == req.user.userId) {
+                errorMessage = "you were blocked by the other user"
+            }
+
+            return res.status(400).send({
+                "success": false,
+                "data": null,
+                "error": errorMessage
+            })
+        }
+    }
+
+    const chat = await prisma.chat.create({
+        data: {
+            name: name || null,
+            isGroup: isGroupChat,
+            users: {
+                create: [
+                    { userId: loggedInUserId },
+                    ...userIds.map((id) => {
+                        return {
+                            userId: id
+                        }
+                    })
+                ]
+            },
+            adminUsers: {
+                connect: {
+                    id: loggedInUserId
+                }
+            }
+        },
+        include: {
+            users: {
+                include: {
+                    user: {
+                        omit: {
+                            privateKey: true,
+                            password: true,
+                            created_at: true,
+                            updated_at: true,
+                            last_seen: true,
+                            isOnline: true,
+                            emailVerifiedAt: true
+                        }
+                    }
+                }
+            },
+            adminUsers: {
+                omit: {
+                    privateKey: true,
+                    password: true,
+                    created_at: true,
+                    updated_at: true,
+                    last_seen: true,
+                    isOnline: true,
+                    emailVerifiedAt: true
+                }
+            }
+        }
+    })
+
+    return res.status(200).send({
+        data: chat,
+        error: null,
+        success: true
+    })
+})
+
+app.post('/chat/block', async (req, res) => {
+    const { chatId } = req.body;
+    if (!chatId) {
+        res.status(400).send({
+            data: null,
+            error: "chatId is a mandatory field",
+            success: false
+        })
+    }
+
+    // console.log(req.user.userId)
+    // const chat = await prisma.chat.findUnique({
+    //     where: {
+    //         id: chatId,
+    //         adminUsers: {
+    //             some: {
+    //                 id: req.user.userId
+    //             }
+    //         },
+    //         users: {
+    //             some: {
+    //                 userId: req.user.userId
+    //             }
+    //         }
+    //     }
+    // })
+
+    // console.log(chat)
+
+    const chat = await prisma.chat.findUnique({
+        where: {
+            id: chatId,
+            adminUsers: {
+                some: {
+                    id: req.user.userId
+                }
+            },
+            users: {
+                some: {
+                    userId: req.user.userId
+                }
+            }
+        }
+    })
+
+    if (!chat) {
+        res.status(404).send({
+            data: null,
+            error: "No chat found",
+            success: false
+        })
+    }
+
+    const updatedChat = await prisma.chat.update({
+        where: {
+            id: chatId,
+        },
+        data: {
+            chatStatus: "LOCKED"
+        },
+        include: {
+            users: true,
+        }
+    })
+
+    if (!updatedChat.isGroup) {
+
+        const otherUserId = updatedChat.users.filter(id => id.userId != req.user.userId)
+
+        console.log(req.user.userId)
+        console.log(otherUserId[0].userId)
+
+        const blockedUser = await prisma.blockedUser.create({
+            data: {
+                blocker: {
+                    connect: {
+                        id: req.user.userId
+                    }
+                },
+                blocked: {
+                    connect: {
+                        id: otherUserId[0].userId
+                    }
+                }
+            }
+        })
+    }
+
+    res.status(200).send({
+        success: true,
+        data: null,
+        error: null
+    })
+})
+
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`)
