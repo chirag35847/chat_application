@@ -5,7 +5,8 @@ import { v4 } from 'uuid';
 import { prisma } from './lib/prisma.js'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
-import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import { S3Client, CreateBucketCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import multer from 'multer';
 import multerS3 from 'multer-s3';
 
@@ -28,23 +29,31 @@ const s3 = new S3Client({
 
 try {
     const command = new CreateBucketCommand({
-      Bucket: s3BucketName,
+        Bucket: s3BucketName,
     });
 
     await s3.send(command)
-} catch (_) {}
+} catch (_) { }
 
 const upload = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: s3BucketName,
-    metadata: function (req, file, cb) {
-      cb(null, {fieldName: file.fieldname});
-    },
-    key: function (req, file, cb) {
-      cb(null, `${v4()}-${Date.now().toString()}`)
+    storage: multerS3({
+        s3: s3,
+        bucket: s3BucketName,
+        metadata: function (req, file, cb) {
+            cb(null, { fieldName: file.fieldname });
+        },
+        key: function (req, file, cb) {
+            cb(null, `${v4()}-${Date.now().toString()}`)
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedMimes = ['application/pdf', 'text/plain'];
+        if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF, Audio, and Text files are allowed.'), false);
+        }
     }
-  })
 })
 
 const app = express();
@@ -245,7 +254,7 @@ app.post('/chat', async (req, res) => {
     }
 
     if (isGroupChat) {
-        const blockedUser = await prisma.blockedUser.findUnique({
+        const blockedUser = await prisma.blockedUser.findFirst({
             where: {
                 OR: [
                     {
@@ -407,26 +416,277 @@ app.post('/chat/block', async (req, res) => {
     })
 })
 
-function uploadMiddleWare(req, res, next) {
+app.post('/chat/message', upload.single('attachment'), async (req, res) => {
     try {
-        upload.single('attachment')
-    } catch (err) {
-        console.log(err);
-    }
+        console.log("Request Body:", req.body);
+        console.log("Request File:", req.file);
 
-    next()
-}
+        if (!req.body) {
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: "Request body is missing"
+            });
+        }
 
-app.use(uploadMiddleWare)
+        const { chatId, text } = req.body;
+        const userId = req.user.userId;
 
-app.post('/chat/message', async (req,res) => {
-    return {
-        success: true,
-        data: null,
-        error: null 
+        if (!chatId) {
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: "chatId is required"
+            });
+        }
+
+        const chat = await prisma.chat.findUnique({
+            where: {
+                id: chatId,
+                users: {
+                    some: {
+                        userId: userId
+                    }
+                }
+            }
+        });
+
+        if (!chat) {
+            return res.status(404).json({
+                success: false,
+                data: null,
+                error: "Chat not found or you are not a member"
+            });
+        }
+
+        if (chat.chatStatus === "LOCKED") {
+            return res.status(403).json({
+                success: false,
+                data: null,
+                error: "This chat is locked"
+            });
+        }
+
+        let encryptedText = null;
+        let blobLocation = null;
+
+        if (text) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                select: { privateKey: true }
+            });
+
+            if (!user || !user.privateKey) {
+                return res.status(404).json({
+                    success: false,
+                    data: null,
+                    error: "User private key not found"
+                });
+            }
+
+            try {
+                const buffer = Buffer.from(text, 'utf8');
+                encryptedText = crypto.privateEncrypt(user.privateKey, buffer).toString('base64');
+            } catch (encryptionError) {
+                return res.status(400).json({
+                    success: false,
+                    data: null,
+                    error: "Encryption failed. Message might be too long for the RSA key size."
+                });
+            }
+        }
+
+        if (req.file) {
+            blobLocation = req.file.key;
+        }
+
+        if (!text && !req.file) {
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: "Either text or an attachment must be provided"
+            });
+        }
+
+        // Determine message type based on file
+        let messageType = 'TEXT';
+        if (req.file) {
+            if (req.file.mimetype === 'application/pdf') {
+                messageType = 'PDF';
+            } else if (req.file.mimetype.startsWith('audio/')) {
+                messageType = 'VOICENOTE';
+            }
+        }
+
+        // Force to valid enum strictly just in case
+        const validTypes = ['TEXT', 'VOICENOTE', 'PDF'];
+        if (!validTypes.includes(messageType)) {
+            messageType = 'TEXT';
+        }
+
+        const message = await prisma.message.create({
+            data: {
+                text: encryptedText,
+                blob_location: blobLocation,
+                chat_id: chatId,
+                sender_id: userId,
+                type: messageType
+            }
+        });
+
+        // Fetch sender separately if needed to be safe
+        const messageWithSender = await prisma.message.findUnique({
+            where: { id: message.id },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        username: true
+                    }
+                }
+            }
+        });
+
+        return res.status(200).json({
+            success: true,
+            data: messageWithSender,
+            error: null
+        });
+
+    } catch (error) {
+        console.error("Error sending message:", error);
+        return res.status(500).json({
+            success: false,
+            data: null,
+            error: "An internal server error occurred"
+        });
     }
 })
-// app.get('/chat/message')
+
+
+app.get('/chat/message', async (req, res) => {
+    try {
+        const { chatId, limit = '20', offset = '0' } = req.query;
+        const userId = req.user.userId;
+
+        if (!chatId) {
+            return res.status(400).json({
+                success: false,
+                data: null,
+                error: "chatId is required"
+            });
+        }
+
+        // Verify user is member of chat
+        const userInChat = await prisma.chatUser.findUnique({
+            where: {
+                chatId_userId: {
+                    chatId: chatId,
+                    userId: userId
+                }
+            }
+        });
+
+        if (!userInChat) {
+            return res.status(403).json({
+                success: false,
+                data: null,
+                error: "You are not a member of this chat"
+            });
+        }
+
+        const take = Math.max(1, parseInt(limit) || 20);
+        const skip = Math.max(0, parseInt(offset) || 0);
+
+        const messages = await prisma.message.findMany({
+            where: {
+                chat_id: chatId
+            },
+            take,
+            skip,
+            orderBy: {
+                created_at: 'desc'
+            },
+            include: {
+                sender: {
+                    select: {
+                        id: true,
+                        username: true,
+                        publicKey: true
+                    }
+                }
+            }
+        });
+
+        const messagesWithData = await Promise.all(messages.map(async (msg) => {
+            let decryptedText = null;
+            let presignedUrl = null;
+
+            // Decrypt text if exists
+            if (msg.text && msg.sender.publicKey) {
+                try {
+                    const publicKey = msg.sender.publicKey.key;
+                    decryptedText = crypto.publicDecrypt(publicKey, Buffer.from(msg.text, 'base64')).toString('utf8');
+                } catch (err) {
+                    console.error(`Failed to decrypt message ${msg.id}:`, err);
+                    decryptedText = "[Error Decrypting Message]";
+                }
+            }
+
+            // Generate presigned URL for blob if exists
+            if (msg.blob_location) {
+                try {
+                    const command = new GetObjectCommand({
+                        Bucket: s3BucketName,
+                        Key: msg.blob_location
+                    });
+                    presignedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 }); // URL valid for 1 hour
+                } catch (err) {
+                    console.error(`Failed to generate presigned URL for message ${msg.id}:`, err);
+                }
+            }
+
+            delete msg.sender.publicKey;
+            delete msg.sender_id;
+            delete msg.chat_id;
+
+            return {
+                ...msg,
+                text: decryptedText || msg.text, // Fallback to original text if decryption failed but didn't throw (unlikely)
+                presignedUrl: presignedUrl
+            };
+        }));
+
+        return res.status(200).json({
+            success: true,
+            data: messagesWithData,
+            error: null
+        });
+
+    } catch (error) {
+        console.error("Error fetching messages:", error);
+        return res.status(500).json({
+            success: false,
+            data: null,
+            error: "An internal server error occurred"
+        });
+    }
+});
+
+app.use((err, req, res, next) => {
+    if (err instanceof multer.MulterError || err.message.includes('Invalid file type')) {
+        return res.status(400).json({
+            success: false,
+            data: null,
+            error: err.message
+        });
+    }
+    res.status(500).json({
+        success: false,
+        data: null,
+        error: "An internal server error occurred"
+    });
+});
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {
