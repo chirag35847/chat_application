@@ -61,9 +61,9 @@ model Message {
   text          String?
   type          MessageType           @default(TEXT)
   blob_location String?
-  expiresAt     DateTime?
-  scheduledAt   DateTime?
-  deletedAt     DateTime?
+  expiresAt     DateTime? // REDIS ; keyspace notification
+  scheduledAt   DateTime? // REDIS ; keyspace notification
+  deletedAt     DateTime? 
   created_at    DateTime              @default(now())
   updated_at    DateTime              @updatedAt
   isActive      Boolean               @default(true)

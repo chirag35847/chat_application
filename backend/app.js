@@ -28,23 +28,32 @@ const s3 = new S3Client({
 
 try {
     const command = new CreateBucketCommand({
-      Bucket: s3BucketName,
+        Bucket: s3BucketName,
     });
 
     await s3.send(command)
-} catch (_) {}
+} catch (_) { }
 
 const upload = multer({
-  storage: multerS3({
-    s3: s3,
-    bucket: s3BucketName,
-    metadata: function (req, file, cb) {
-      cb(null, {fieldName: file.fieldname});
-    },
-    key: function (req, file, cb) {
-      cb(null, `${v4()}-${Date.now().toString()}`)
+    storage: multerS3({
+        s3: s3,
+        bucket: s3BucketName,
+        metadata: function (req, file, cb) {
+            cb(null, { fieldName: file.fieldname });
+        },
+        key: function (req, file, cb) {
+            cb(null, `${v4()}-${Date.now().toString()}`)
+        }
+    }),
+    fileFilter: (req, file, cb) => {
+        const allowedMimes = ['application/pdf', 'text/plain']
+        const audioMimeType = 'audio/'
+        if (allowedMimes.includes(file.mimetype) || file.mimetype.startsWith(audioMimeType)) {
+            cb(null, true);
+        } else {
+            cb(new Error("Invalid file type"))
+        }
     }
-  })
 })
 
 const app = express();
@@ -407,24 +416,132 @@ app.post('/chat/block', async (req, res) => {
     })
 })
 
-function uploadMiddleWare(req, res, next) {
-    try {
-        upload.single('attachment')
-    } catch (err) {
-        console.log(err);
+// TODO: 
+// function uploadMiddleWare(req, res, next) {
+//     try {
+//         upload.single('attachment')
+//     } catch (err) {
+//         console.log(err);
+//     }
+
+//     next()
+// }
+
+// app.use(uploadMiddleWare)
+
+app.post('/chat/message', upload.single('attachment'), async (req, res) => {
+
+    const {chatId, text} = req.body;
+    if(!chatId) {
+        return res.status(400).send({
+            data: null,
+            success: false,
+            error: "chatId is required"
+        })
     }
 
-    next()
-}
+    const chat = await prisma.chat.findUnique({
+        where: {
+            id: chatId,
+            users: {
+                some: {
+                    userId: req.user.userId
+                }
+            }
+        }
+    })
 
-app.use(uploadMiddleWare)
+    if (!chat) {
+        return res.status(400).send({
+            data: null,
+            success: false,
+            error: "chat not found, or user is not a part of that chat"
+        })
+    }
 
-app.post('/chat/message', async (req,res) => {
-    return {
+    if(chat.chatStatus == 'LOCKED') {
+        return res.status(400).send({
+            data: null,
+            success: false,
+            error: "cannot send message to a locked chat"
+        })
+    }
+
+    let encryptedText = null;
+    let blobLocation = null;
+    if (text) {
+        const user = await prisma.user.findUnique({
+            where: {
+                id: req.user.userId,
+            }
+        })
+
+        if (!user) {
+            return res.status(400).send({
+                data: null,
+                success: false,
+                error: "user not found"
+            })
+        }
+
+        const privateKey = user.privateKey;
+        try{
+            const buffer = Buffer.from(text,"utf8")
+            encryptedText = crypto.privateEncrypt(privateKey, buffer).toString("base64")
+        } catch (err) {
+            return res.status(400).send({
+                data: null,
+                success: false,
+                error: "Encryption failed, the text does not follow utf8 encoding"
+            })
+        }
+    }
+
+    if(req.file){
+        blobLocation = req.file.key;
+    }
+
+    if (!encryptedText || !blobLocation) {
+        return res.status(400).send({
+            data: null,
+            success: false,
+            error: "cannot send empty message"
+        })
+    }
+
+    let fileType = "TEXT";
+    if(req.file.mimetype === "application/pdf"){
+        fileType = "PDF"
+    } else if (req.file.mimetype.startsWith("audio/")){
+        fileType = "VOICENOTE"
+    }
+
+    const createdMessage = await prisma.message.create({
+        data: {
+            text: encryptedText,
+            type: fileType,
+            blob_location: blobLocation,
+            chat: {
+                connect: {
+                    id: chat.id
+                }
+            },
+            sender: {
+                connect: {
+                    id: req.user.userId
+                }
+            }
+        },
+        select: {
+            id: true,
+        }
+    })
+
+    res.status(200).send({
         success: true,
-        data: null,
-        error: null 
-    }
+        data: createdMessage,
+        error: null
+    })
 })
 // app.get('/chat/message')
 
