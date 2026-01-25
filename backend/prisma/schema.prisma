@@ -1,34 +1,29 @@
-datasource db {
-  provider = "postgresql"
-}
-
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "postgresql"
+}
+
 model User {
-  id              String    @id @default(uuid())
-  username        String    @unique
-  email           String    @unique
+  id              String                @id @default(uuid())
+  username        String                @unique
+  email           String                @unique
   password        String
-  created_at      DateTime  @default(now())
-  updated_at      DateTime  @updatedAt
-  last_seen       DateTime  @default(now())
-  isOnline        Boolean   @default(false)
+  created_at      DateTime              @default(now())
+  updated_at      DateTime              @updatedAt
+  last_seen       DateTime              @default(now())
+  isOnline        Boolean               @default(false)
   emailVerifiedAt DateTime?
   privateKey      String
-
-  chats      ChatUser[]
-  adminChats Chat[]     @relation("ChatAdmins")
-  publicKey  PublicKey?
-  messages   Message[]
-
-  // Blocking/Reporting
-  blockedUsers BlockedUser[] @relation("BlockedBy")
-  blockedBy    BlockedUser[] @relation("BlockedTarget")
-
-  // Message metadata (Read receipts)
+  blockedBy       BlockedUser[]         @relation("BlockedTarget")
+  blockedUsers    BlockedUser[]         @relation("BlockedBy")
+  chats           ChatUser[]
+  messages        Message[]
+  publicKey       PublicKey?
   messageMetadata UserMessageMetadata[]
+  adminChats      Chat[]                @relation("ChatAdmins")
 }
 
 model PublicKey {
@@ -40,31 +35,73 @@ model PublicKey {
 
 model Chat {
   id         String     @id @default(uuid())
-  name       String? // For groups
+  name       String?
   isGroup    Boolean    @default(false)
   created_at DateTime   @default(now())
   updated_at DateTime   @updatedAt
   chatStatus ChatStatus @default(ACTIVE)
-
   users      ChatUser[]
-  adminUsers User[]     @relation("ChatAdmins")
   messages   Message[]
-}
-
-enum ChatStatus {
-  LOCKED
-  ACTIVE
+  adminUsers User[]     @relation("ChatAdmins")
 }
 
 model ChatUser {
   chatId   String
   userId   String
-  chat     Chat           @relation(fields: [chatId], references: [id])
-  user     User           @relation(fields: [userId], references: [id])
   chatMode ChatMode       @default(NORMAL)
   status   UserChatStatus @default(ACTIVE)
+  chat     Chat           @relation(fields: [chatId], references: [id])
+  user     User           @relation(fields: [userId], references: [id])
 
   @@id([chatId, userId])
+}
+
+model Message {
+  id            String                @id @default(uuid())
+  text          String?
+  type          MessageType           @default(TEXT)
+  blob_location String?
+  expiresAt     DateTime?
+  scheduledAt   DateTime?
+  deletedAt     DateTime?
+  created_at    DateTime              @default(now())
+  updated_at    DateTime              @updatedAt
+  isActive      Boolean               @default(true)
+  isEdited      Boolean               @default(false)
+  chat_id       String
+  sender_id     String
+  chat          Chat                  @relation(fields: [chat_id], references: [id])
+  sender        User                  @relation(fields: [sender_id], references: [id])
+  metadata      UserMessageMetadata[]
+}
+
+model UserMessageMetadata {
+  id        String        @id @default(uuid())
+  messageId String
+  userId    String
+  status    MessageStatus @default(UNREAD)
+  seenAt    DateTime?
+  message   Message       @relation(fields: [messageId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([messageId, userId])
+}
+
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  reason    String?
+  createdAt DateTime @default(now())
+  blocked   User     @relation("BlockedTarget", fields: [blockedId], references: [id])
+  blocker   User     @relation("BlockedBy", fields: [blockerId], references: [id])
+
+  @@unique([blockerId, blockedId])
+}
+
+enum ChatStatus {
+  LOCKED
+  ACTIVE
 }
 
 enum ChatMode {
@@ -79,66 +116,14 @@ enum UserChatStatus {
   ACTIVE
 }
 
-model Message {
-  id            String      @id @default(uuid())
-  text          String?
-  type          MessageType @default(TEXT)
-  blob_location String?
-
-  // Disappearing & Scheduling
-  expiresAt   DateTime?
-  scheduledAt DateTime?
-  deletedAt   DateTime?
-
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-  isActive   Boolean  @default(true)
-  isEdited   Boolean  @default(false)
-
-  chat_id String
-  chat    Chat   @relation(fields: [chat_id], references: [id])
-
-  sender_id String
-  sender    User   @relation(fields: [sender_id], references: [id])
-
-  // Read receipts / metadata
-  metadata UserMessageMetadata[]
-}
-
 enum MessageType {
   TEXT
   VOICENOTE
   PDF
 }
 
-model UserMessageMetadata {
-  id        String        @id @default(uuid())
-  messageId String
-  userId    String
-  status    MessageStatus @default(UNREAD)
-  seenAt    DateTime?
-
-  message Message @relation(fields: [messageId], references: [id])
-  user    User    @relation(fields: [userId], references: [id])
-
-  @@unique([messageId, userId])
-}
-
 enum MessageStatus {
   READ
   UNREAD
   DELIVERED
-}
-
-model BlockedUser {
-  id        String   @id @default(uuid())
-  blockerId String
-  blockedId String
-  reason    String?
-  createdAt DateTime @default(now())
-
-  blocker User @relation("BlockedBy", fields: [blockerId], references: [id])
-  blocked User @relation("BlockedTarget", fields: [blockedId], references: [id])
-
-  @@unique([blockerId, blockedId])
 }
