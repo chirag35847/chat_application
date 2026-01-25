@@ -5,8 +5,47 @@ import { v4 } from 'uuid';
 import { prisma } from './lib/prisma.js'
 import crypto from 'crypto'
 import jwt from 'jsonwebtoken'
+import { S3Client, CreateBucketCommand } from '@aws-sdk/client-s3';
+import multer from 'multer';
+import multerS3 from 'multer-s3';
 
 dotenv.config();
+
+const s3Endpoint = process.env.S3_ENDPOINT
+const awsAccessKeyId = process.env.AWS_ACCESS_KEY
+const awsSecretKey = process.env.AWS_SECRET_KEY
+const s3Region = process.env.S3_REGION
+const s3BucketName = process.env.S3_BUCKET_NAME
+const s3 = new S3Client({
+    endpoint: s3Endpoint,
+    credentials: {
+        accessKeyId: awsAccessKeyId,
+        secretAccessKey: awsSecretKey,
+    },
+    region: s3Region,
+    forcePathStyle: true,
+})
+
+try {
+    const command = new CreateBucketCommand({
+      Bucket: s3BucketName,
+    });
+
+    await s3.send(command)
+} catch (_) {}
+
+const upload = multer({
+  storage: multerS3({
+    s3: s3,
+    bucket: s3BucketName,
+    metadata: function (req, file, cb) {
+      cb(null, {fieldName: file.fieldname});
+    },
+    key: function (req, file, cb) {
+      cb(null, `${v4()}-${Date.now().toString()}`)
+    }
+  })
+})
 
 const app = express();
 app.use(express.json());
@@ -302,25 +341,6 @@ app.post('/chat/block', async (req, res) => {
         })
     }
 
-    // console.log(req.user.userId)
-    // const chat = await prisma.chat.findUnique({
-    //     where: {
-    //         id: chatId,
-    //         adminUsers: {
-    //             some: {
-    //                 id: req.user.userId
-    //             }
-    //         },
-    //         users: {
-    //             some: {
-    //                 userId: req.user.userId
-    //             }
-    //         }
-    //     }
-    // })
-
-    // console.log(chat)
-
     const chat = await prisma.chat.findUnique({
         where: {
             id: chatId,
@@ -386,6 +406,27 @@ app.post('/chat/block', async (req, res) => {
         error: null
     })
 })
+
+function uploadMiddleWare(req, res, next) {
+    try {
+        upload.single('attachment')
+    } catch (err) {
+        console.log(err);
+    }
+
+    next()
+}
+
+app.use(uploadMiddleWare)
+
+app.post('/chat/message', async (req,res) => {
+    return {
+        success: true,
+        data: null,
+        error: null 
+    }
+})
+// app.get('/chat/message')
 
 const PORT = process.env.PORT;
 app.listen(PORT, () => {

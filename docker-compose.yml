@@ -8,3 +8,12 @@ services:
 
     ports:
       - 5432:5432
+  
+  s3_localstack:
+    image: localstack/localstack:latest
+    ports: 
+      - 4566:4566
+    environment: 
+      - AWS_ACCESS_KEY_ID=chat_app
+      - AWS_SECRET_ACCESS_KEY=chat_app
+      - AWS_DEFAULT_REGION=ap-south-1
