@@ -8,12 +8,17 @@ services:
 
     ports:
       - 5432:5432
-  
+
+  redis:
+    image: redis:alpine
+    ports:
+      - 6379:6379
+
   s3_localstack:
     image: localstack/localstack:latest
-    ports: 
+    ports:
       - 4566:4566
-    environment: 
+    environment:
       - AWS_ACCESS_KEY_ID=chat_app
       - AWS_SECRET_ACCESS_KEY=chat_app
       - AWS_DEFAULT_REGION=ap-south-1

@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import { initializeS3 } from './src/config/s3.js';
+import { connectRedis } from './src/config/redis.js';
 import { uploadErrorHandler } from './src/middlewares/upload.js';
 import userRoutes from './src/routes/userRoutes.js';
 import chatRoutes from './src/routes/chatRoutes.js';
@@ -12,6 +13,9 @@ app.use(express.json());
 
 // Initialize S3 Bucket
 initializeS3();
+
+// Initialize Redis
+connectRedis();
 
 // Routes
 app.get("/", (req, res) => {
