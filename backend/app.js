@@ -4,6 +4,7 @@ import { initializeS3 } from './src/config/s3.js';
 import { uploadErrorHandler } from './src/middlewares/upload.js';
 import userRoutes from './src/routes/userRoutes.js';
 import chatRoutes from './src/routes/chatRoutes.js';
+import { connectRedis } from './src/config/redis.js';
 
 dotenv.config();
 
@@ -12,6 +13,7 @@ app.use(express.json());
 
 // Initialize S3 Bucket
 initializeS3();
+connectRedis();
 
 // Routes
 app.get("/", (req, res) => {
@@ -32,6 +34,8 @@ app.use((err, req, res, next) => {
         error: "An internal server error occurred"
     });
 });
+
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {

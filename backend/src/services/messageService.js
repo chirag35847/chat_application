@@ -5,6 +5,8 @@ import { encryptText, decryptText } from '../utils/crypto.js';
 import { s3, s3BucketName } from '../config/s3.js';
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import {REDIS_KEYS} from '../redis/constants.js'
+import { getRedis, setRedis } from '../redis/utils.js';
 
 export const messageService = {
     async sendMessage({ chatId, text, userId, file }) {
@@ -82,11 +84,19 @@ export const messageService = {
 
             if (msg.blob_location) {
                 try {
-                    const command = new GetObjectCommand({
-                        Bucket: s3BucketName,
-                        Key: msg.blob_location
-                    });
-                    presignedUrl = await getSignedUrl(s3, command, { expiresIn: 3600 });
+                    const redisKey = REDIS_KEYS.PRESIGNED_URL(msg.id)
+                    const cachedValue = await getRedis(redisKey)
+                    if (cachedValue){
+                        presignedUrl = cachedValue
+                    } else {
+                        const command = new GetObjectCommand({
+                            Bucket: s3BucketName,
+                            Key: msg.blob_location
+                        });
+                        presignedUrl = await getSignedUrl(s3, command, { expiresIn: 900 });
+
+                        setRedis(redisKey, presignedUrl, 900)
+                    }                
                 } catch (err) {
                     console.error(`Failed to generate presigned URL for message ${msg.id}:`, err);
                 }
