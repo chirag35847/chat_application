@@ -2,6 +2,13 @@ import { messageService } from '../services/messageService.js';
 
 export const messageController = {
     async sendMessage(req, res) {
+
+        // console.log(req.ip)
+        // console.log(req.headers['x-forwarded-for'])
+        // console.log(req.user.userId)
+        // console.log(req.socket.remoteAddress)
+
+
         try {
             if (!req.body) {
                 return res.status(400).json({
@@ -41,6 +48,12 @@ export const messageController = {
     },
 
     async getMessages(req, res) {
+
+        // console.log(req.ip)
+        // console.log(req.headers['x-forwarded-for'])
+        // console.log(req.user.userId)
+        // console.log(req.socket.remoteAddress)
+
         try {
             const { chatId, limit, offset } = req.query;
             const userId = req.user.userId;

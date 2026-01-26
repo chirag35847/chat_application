@@ -5,6 +5,7 @@ import { uploadErrorHandler } from './src/middlewares/upload.js';
 import userRoutes from './src/routes/userRoutes.js';
 import chatRoutes from './src/routes/chatRoutes.js';
 import { connectRedis } from './src/config/redis.js';
+import {rateLimiter} from '../backend/src/middlewares/rateLimiter.js'
 
 dotenv.config();
 
@@ -19,6 +20,8 @@ connectRedis();
 app.get("/", (req, res) => {
     res.send("I am up")
 })
+
+app.use(rateLimiter)
 
 app.use('/user', userRoutes);
 app.use('/chat', chatRoutes);

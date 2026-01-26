@@ -8,4 +8,8 @@ async function getRedis (key)  {
     return await redisClient.get(key)
 }
 
-export {getRedis, setRedis}
+async function increment(key) {
+    return await redisClient.incr(key)
+}
+
+export {getRedis, setRedis, increment}
