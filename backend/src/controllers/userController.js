@@ -54,5 +54,38 @@ export const userController = {
         } catch (error) {
             res.status(500).send({ success: false, data: null, error: error.message });
         }
+    },
+
+    async refresh(req, res) {
+        try {
+            const { refreshToken } = req.body;
+            if (!refreshToken) {
+                return res.status(400).send({
+                    success: false,
+                    data: null,
+                    error: "refresh token is required"
+                });
+            }
+
+            const data = await userService.refreshAccessToken(refreshToken);
+            res.status(200).send({ success: true, data });
+        } catch (error) {
+            res.status(401).send({
+                success: false,
+                data: null,
+                error: error.message
+            });
+        }
+    },
+
+    async logout(req, res) {
+        try {
+            await userService.logout(req.user.userId);
+            res.status(200).send({ success: true, message: "Logged out successfully" });
+        } catch (error) {
+            res.status(500).send({ success: false, data: null, error: error.message });
+        }
     }
 };
+
+

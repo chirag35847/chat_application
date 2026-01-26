@@ -6,6 +6,10 @@ const router = express.Router();
 
 router.post('/register', userController.register);
 router.post('/login', userController.login);
+router.post('/refresh', userController.refresh);
+router.post('/logout', authMiddleware, userController.logout);
 router.get('/search', authMiddleware, userController.search);
+
+
 
 export default router;
