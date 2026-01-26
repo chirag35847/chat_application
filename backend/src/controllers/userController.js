@@ -38,6 +38,37 @@ export const userController = {
         }
     },
 
+    async generateRefreshToken(req, res) {
+        try {
+            const refreshToken = req.headers['refreshToken'];
+            if (!refreshToken) {
+                res.status(400).send({ success: false, data: null, error: "refresh token not provided" });
+            }
+            const tokenResponse = await userService.generateRefreshToken({ refreshToken })
+            if (tokenResponse.success) {
+                return res.status(200).send({
+                    success: true, data: {
+                        accessToken: tokenResponse.token
+                    }, error: error.message
+                });
+            }
+            return res.status(401).send({
+                success: false, data: null, error: error.message
+            });
+        } catch (error) {
+            res.status(500).send({ success: false, data: null, error: error.message });
+        }
+    },
+
+    async logout(req,res) {
+        try {
+            const response = await userService.logout(req.user.userId)
+            res.status(200).send({ success: true, data: null, error: null });
+        } catch (error) {
+            res.status(500).send({ success: false, data: null, error: error.message });
+        }
+    },
+
     async search(req, res) {
         try {
             const { email, username } = req.query;
