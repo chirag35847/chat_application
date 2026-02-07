@@ -69,11 +69,11 @@ const ChatWindow = ({ selectedChat, currentUserId }) => {
                 const apiMsg = response.data;
                 const formattedMsg = {
                     ...apiMsg,
-                    decryptedText: text || '', // Use the local clear text instead of encrypted text from API
+                    decryptedText: text || '',
                     status: 'sent',
-                    // If it was a file, we might have a presignedUrl now
-                    // Note: backend sendMessage might not return presignedUrl immediately 
-                    // depending on implementation. If not, we could re-fetch or use placeholder
+                    // Preserve local preview data since API response might not have presignedUrl immediately
+                    presignedUrl: placeholderMessage.presignedUrl,
+                    file_name: placeholderMessage.file_name
                 };
 
                 setMessages(prev => prev.map(m => m.id === tempId ? formattedMsg : m));
