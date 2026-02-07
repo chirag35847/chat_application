@@ -14,6 +14,22 @@ const MessageInput = ({ message, setMessage, onSendMessage }) => {
     const mediaRecorderRef = useRef(null);
     const timerRef = useRef(null);
 
+    // Close emoji picker when clicking outside
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target)) {
+                setShowEmojiPicker(false);
+            }
+        };
+
+        if (showEmojiPicker) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showEmojiPicker]);
+
     const handleSend = () => {
         if (message.trim() || selectedFile || audioBlob) {
             onSendMessage({

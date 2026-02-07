@@ -12,8 +12,8 @@ export const userController = {
                 });
             }
 
-            const user = await userService.registerUser({ email, username, password });
-            res.status(200).json({ success: true, data: user, error: null });
+            const data = await userService.registerUser({ email, username, password });
+            res.status(200).json({ success: true, data, error: null });
         } catch (error) {
             res.status(500).json({ success: false, data: null, error: error.message });
         }
@@ -60,7 +60,7 @@ export const userController = {
         }
     },
 
-    async logout(req,res) {
+    async logout(req, res) {
         try {
             const response = await userService.logout(req.user.userId)
             res.status(200).send({ success: true, data: null, error: null });
@@ -106,15 +106,6 @@ export const userController = {
                 data: null,
                 error: error.message
             });
-        }
-    },
-
-    async logout(req, res) {
-        try {
-            await userService.logout(req.user.userId);
-            res.status(200).send({ success: true, message: "Logged out successfully" });
-        } catch (error) {
-            res.status(500).send({ success: false, data: null, error: error.message });
         }
     }
 };

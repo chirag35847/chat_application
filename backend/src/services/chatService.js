@@ -1,4 +1,5 @@
 import { chatRepository } from '../repositories/chatRepository.js';
+import { decryptText } from '../utils/crypto.js';
 
 export const chatService = {
     async createChat({ userIds, name, adminUserId }) {
@@ -44,5 +45,24 @@ export const chatService = {
         }
 
         return updatedChat;
+    },
+
+    async getUserChats(userId) {
+        const chats = await chatRepository.findUserChats(userId);
+
+        return chats.map(chat => {
+            if (chat.messages && chat.messages.length > 0) {
+                const lastMsg = chat.messages[0];
+                if (lastMsg.text && lastMsg.sender?.publicKey) {
+                    try {
+                        lastMsg.text = decryptText(lastMsg.text, lastMsg.sender.publicKey.key);
+                    } catch (err) {
+                        console.error(`Failed to decrypt last message for chat ${chat.id}:`, err);
+                        lastMsg.text = "[Error Decrypting]";
+                    }
+                }
+            }
+            return chat;
+        });
     }
 };

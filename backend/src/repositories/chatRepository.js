@@ -109,5 +109,53 @@ export const chatRepository = {
                 }
             }
         });
+    },
+
+    async findUserChats(userId) {
+        return await prisma.chat.findMany({
+            where: {
+                users: {
+                    some: {
+                        userId: userId
+                    }
+                }
+            },
+            include: {
+                users: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                username: true,
+                                email: true,
+                                isOnline: true,
+                                last_seen: true
+                            }
+                        }
+                    }
+                },
+                messages: {
+                    orderBy: {
+                        created_at: 'desc'
+                    },
+                    take: 1,
+                    include: {
+                        sender: {
+                            select: {
+                                username: true,
+                                publicKey: {
+                                    select: {
+                                        key: true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            orderBy: {
+                updated_at: 'desc'
+            }
+        });
     }
 };

@@ -10,13 +10,25 @@ export const userService = {
         const hashedPassword = await bcrypt.hash(password, 10);
         const keyPair = generateRSAKeyPair();
 
-        return await userRepository.createUser({
+        const user = await userRepository.createUser({
             username,
             email,
             hashedPassword,
             privateKey: keyPair.privateKey,
             publicKey: keyPair.publicKey
         });
+
+        const accessToken = this.generateAccessToken(user.id);
+        const refreshToken = this.generateRefreshToken(user.id);
+
+        // Store refresh token in Redis with 7 days expiry
+        await redisHelpers.setCache(REDIS_KEYS.REFRESH_TOKEN(user.id), refreshToken, 7 * 24 * 60 * 60);
+
+        return {
+            accessToken,
+            refreshToken,
+            userId: user.id,
+        };
     },
 
     async loginUser({ email, password }) {
@@ -36,7 +48,12 @@ export const userService = {
         // Store refresh token in Redis with 7 days expiry
         await redisHelpers.setCache(REDIS_KEYS.REFRESH_TOKEN(user.id), refreshToken, 7 * 24 * 60 * 60);
 
-        return { accessToken, refreshToken, userId: user.id };
+
+        return {
+            accessToken,
+            refreshToken,
+            userId: user.id,
+        };
     },
 
     generateAccessToken(userId) {

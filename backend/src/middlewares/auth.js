@@ -13,9 +13,10 @@ export const authMiddleware = (req, res, next) => {
         });
     }
 
+    const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
     const jwt_secret = process.env.JWT_SECRET;
     try {
-        const verified = jwt.verify(authHeader, jwt_secret);
+        const verified = jwt.verify(token, jwt_secret);
         req.user = verified;
         next();
     } catch (err) {

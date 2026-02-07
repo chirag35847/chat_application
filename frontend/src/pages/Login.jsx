@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 import { motion } from 'framer-motion';
+import { login } from '../api/auth';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -10,12 +11,29 @@ const Login = () => {
         email: '',
         password: '',
     });
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        console.log('Login attempt:', formData);
-        // Simulate successful login
-        navigate('/chat');
+        setLoading(true);
+        setError('');
+
+        try {
+            const response = await login(formData);
+            if (response.success) {
+                localStorage.setItem('accessToken', response.data.accessToken);
+                localStorage.setItem('refreshToken', response.data.refreshToken);
+                localStorage.setItem('userId', response.data.userId);
+                navigate('/chat');
+            } else {
+                setError(response.error || 'Login failed');
+            }
+        } catch (err) {
+            setError(err.response?.data?.error || 'Something went wrong. Please try again.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -63,14 +81,21 @@ const Login = () => {
                     </div>
                 </div>
 
+                {error && (
+                    <div className="bg-red-500/10 border border-red-500/50 text-red-400 text-sm py-3 px-4 rounded-xl">
+                        {error}
+                    </div>
+                )}
+
                 <motion.button
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     type="submit"
-                    className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 group transition-all"
+                    disabled={loading}
+                    className={`w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 group transition-all ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                    Sign In
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    {loading ? 'Signing In...' : 'Sign In'}
+                    {!loading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                 </motion.button>
             </form>
 

@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import dotenv from 'dotenv';
 import { initializeS3 } from './src/config/s3.js';
 import { connectRedis } from './src/config/redis.js';
@@ -10,6 +11,10 @@ import { rateLimiter } from './src/middlewares/rateLimiter.js';
 dotenv.config();
 
 const app = express();
+app.use(cors({
+    origin: 'http://localhost:5173',
+    credentials: true
+}));
 app.use(express.json());
 app.use(rateLimiter(100, 60)); // 100 requests per minute
 

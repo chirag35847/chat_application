@@ -38,5 +38,14 @@ export const chatController = {
             const status = error.message === 'No chat found' ? 404 : 500;
             res.status(status).send({ success: false, data: null, error: error.message });
         }
+    },
+
+    async getUserChats(req, res) {
+        try {
+            const chats = await chatService.getUserChats(req.user.userId);
+            res.status(200).send({ success: true, data: chats, error: null });
+        } catch (error) {
+            res.status(500).send({ success: false, data: null, error: error.message });
+        }
     }
 };

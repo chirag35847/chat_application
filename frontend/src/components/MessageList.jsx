@@ -1,7 +1,16 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import MessageBubble from './MessageBubble';
 
 const MessageList = ({ messages = [], currentUserId }) => {
+    const messagesEndRef = useRef(null);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
     // Helper to format ISO strings to simple Time
     const formatTime = (isoString) => {
@@ -35,6 +44,7 @@ const MessageList = ({ messages = [], currentUserId }) => {
                     url={msg.presignedUrl}
                 />
             ))}
+            <div ref={messagesEndRef} />
         </div>
     );
 };
