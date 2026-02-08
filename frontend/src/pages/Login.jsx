@@ -3,6 +3,7 @@ import { Mail, Lock, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import AuthLayout from '../components/AuthLayout';
 import { motion } from 'framer-motion';
+import { login } from '../api/auth';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -10,12 +11,32 @@ const Login = () => {
         email: '',
         password: '',
     });
+    const [error, setError] = useState('')
+    const [loading, setLoading] = useState(false);
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         console.log('Login attempt:', formData);
         // Simulate successful login
-        navigate('/chat');
+        setLoading(true)
+
+
+        try {
+            const response = await login(formData);
+            if(response.success) {
+                localStorage.setItem('accessToken', response?.data?.accessToken)
+                localStorage.setItem('refreshToken', response?.data?.refreshToken);
+                localStorage.setItem('userId', response.data.userId);
+                navigate('/chat');
+            } else {
+                setError(response.error || 'Login Failed')
+            }
+        } catch (err) {
+            setError(err.response?.data?.error || "Something went wrong. Please try again.")
+        } finally {
+            setLoading(false);
+        }
+
     };
 
     return (
@@ -67,10 +88,11 @@ const Login = () => {
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     type="submit"
+                    disabled={loading}
                     className="w-full bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold py-3 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 group transition-all"
                 >
-                    Sign In
-                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                    { loading ? 'Singing In...' : 'Sign In'}
+                    {!loading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" /> }
                 </motion.button>
             </form>
 

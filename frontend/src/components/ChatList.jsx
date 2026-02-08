@@ -3,11 +3,11 @@ import ChatListItem from './ChatListItem';
 import ChatListHeader from './ChatListHeader';
 import SearchBar from './SearchBar';
 
-const ChatList = ({ chats, selectedChat, onSelectChat, searchQuery, setSearchQuery }) => {
+const ChatList = ({ chats, selectedChat, onSelectChat, searchQuery, setSearchQuery, onNewChat }) => {
     return (
         <div className="w-[400px] flex flex-col bg-[#111b21] border-r border-[#ffffff1a]">
             <div className="p-4 flex flex-col gap-4">
-                <ChatListHeader />
+                <ChatListHeader onNewChat={onNewChat} />
                 <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
             </div>
 

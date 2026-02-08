@@ -12,8 +12,8 @@ export const userController = {
                 });
             }
 
-            const user = await userService.registerUser({ email, username, password });
-            res.status(200).json({ success: true, data: user, error: null });
+            const data = await userService.registerUser({ email, username, password });
+            res.status(200).json({ success: true, data, error: null });
         } catch (error) {
             res.status(500).json({ success: false, data: null, error: error.message });
         }
@@ -31,7 +31,7 @@ export const userController = {
             }
 
             const data = await userService.loginUser({ email, password });
-            res.status(200).send({ success: true, data });
+            res.status(200).send({ success: true, data, error: null });
         } catch (error) {
             const status = error.message.includes('not find') ? 404 : (error.message.includes('incorrect') ? 401 : 500);
             res.status(status).send({ success: false, data: null, error: error.message });

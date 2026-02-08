@@ -8,6 +8,7 @@ const router = express.Router();
 
 router.use(authMiddleware);
 
+router.get('/', chatController.getUserChats);
 router.post('/', chatController.createChat);
 router.post('/block', chatController.blockChat);
 router.post('/message', upload.single('attachment'), messageController.sendMessage);

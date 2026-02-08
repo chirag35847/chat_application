@@ -1,6 +1,16 @@
 import { chatService } from '../services/chatService.js';
 
 export const chatController = {
+
+    async getUserChats(req, res) {
+        try {
+            const chats = await chatService.getUserChats(req.user.userId);
+            console.log(chats)
+            res.status(200).send({ success: true, data: chats, error: null });
+        } catch (error) {
+            res.status(500).send({ success: false, data: null, error: error.message })
+        }
+    },
     async createChat(req, res) {
         try {
             const { userIds, name } = req.body;
