@@ -52,13 +52,30 @@ export const messageService = {
             }
         }
 
-        return await messageRepository.createMessage({
+        const message = await messageRepository.createMessage({
             encryptedText,
             blobLocation,
             chatId,
             senderId: userId,
             messageType
         });
+
+        // Fetch public key to decrypt for the response/broadcast
+        const sender = await userRepository.findById(userId, { publicKey: true });
+
+        let decryptedText = text;
+        if (encryptedText && sender?.publicKey) {
+            try {
+                decryptedText = decryptText(encryptedText, sender.publicKey.key);
+            } catch (err) {
+                console.error("Failed to decrypt message for immediate response:", err);
+            }
+        }
+
+        return {
+            ...message,
+            text: decryptedText || encryptedText
+        };
     },
 
     async getMessages({ chatId, userId, limit = 20, offset = 0 }) {

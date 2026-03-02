@@ -5,11 +5,13 @@ import MessageList from './MessageList';
 import MessageInput from './MessageInput';
 import ChatPlaceholder from './ChatPlaceholder';
 import { getMessages, sendMessage } from '../api/chat';
+import { useSocket } from '../context/SocketContext';
 
 const ChatWindow = ({ selectedChat, currentUserId }) => {
     const [message, setMessage] = useState('');
     const [messages, setMessages] = useState([]);
     const [loading, setLoading] = useState(false);
+    const socket = useSocket();
     const scrollRef = useRef(null);
 
     const fetchMessages = async (chatId) => {
@@ -35,10 +37,33 @@ const ChatWindow = ({ selectedChat, currentUserId }) => {
     useEffect(() => {
         if (selectedChat?.id) {
             fetchMessages(selectedChat.id);
+
+            if (socket) {
+                socket.emit('join_chat', selectedChat.id);
+
+                const handleReceiveMessage = (newMessage) => {
+                    setMessages((prev) => {
+                        // Avoid duplicates if the sender is also the current user
+                        if (prev.find(m => m.id === newMessage.id)) return prev;
+
+                        return [...prev, {
+                            ...newMessage,
+                            decryptedText: newMessage.text,
+                            status: 'sent'
+                        }];
+                    });
+                };
+
+                socket.on('receive_message', handleReceiveMessage);
+
+                return () => {
+                    socket.off('receive_message', handleReceiveMessage);
+                };
+            }
         } else {
             setMessages([]);
         }
-    }, [selectedChat?.id]);
+    }, [selectedChat?.id, socket]);
 
     const handleSendMessage = async ({ text, file }) => {
         if (!selectedChat || (!text?.trim() && !file)) return;
@@ -63,7 +88,11 @@ const ChatWindow = ({ selectedChat, currentUserId }) => {
             if (text) formData.append('text', text);
             if (file) formData.append('attachment', file);
 
-            const response = await sendMessage(formData);
+            const response = await sendMessage(formData, {
+                headers: {
+                    'X-Socket-ID': socket?.id
+                }
+            });
 
             if (response.success) {
                 const apiMsg = response.data;

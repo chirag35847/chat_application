@@ -29,6 +29,17 @@ export const messageController = {
                 file: req.file
             });
 
+            // Emit the message to the chat room (excluding the sender)
+            const { getIO } = await import('../config/socket.js');
+            const io = getIO();
+            const socketId = req.headers['x-socket-id'];
+
+            if (socketId) {
+                io.to(chatId).except(socketId).emit('receive_message', message);
+            } else {
+                io.to(chatId).emit('receive_message', message);
+            }
+
             res.status(200).json({ success: true, data: message, error: null });
         } catch (error) {
             let status = 500;

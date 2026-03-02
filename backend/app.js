@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { initializeS3 } from './src/config/s3.js';
 import { connectRedis } from './src/config/redis.js';
+import { initializeSocket } from './src/config/socket.js';
 import { uploadErrorHandler } from './src/middlewares/upload.js';
 import userRoutes from './src/routes/userRoutes.js';
 import chatRoutes from './src/routes/chatRoutes.js';
@@ -11,6 +12,7 @@ import { rateLimiter } from './src/middlewares/rateLimiter.js';
 dotenv.config();
 
 const app = express();
+
 app.use(cors({
     origin: 'http://localhost:5173',
     credentials: true
@@ -44,7 +46,10 @@ app.use((err, req, res, next) => {
     });
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 8000;
+const server = app.listen(PORT, () => {
     console.log(`Server running on port http://localhost:${PORT}`)
 });
+
+// Initialize Socket.IO with the server instance
+initializeSocket(server);

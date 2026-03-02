@@ -15,10 +15,12 @@ export const getMessages = async (chatId) => {
     return response.data;
 };
 
-export const sendMessage = async (formData) => {
+export const sendMessage = async (formData, config = {}) => {
     const response = await apiClient.post('/chat/message', formData, {
+        ...config,
         headers: {
             'Content-Type': 'multipart/form-data',
+            ...config.headers,
         },
     });
     return response.data;
