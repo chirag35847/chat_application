@@ -1,4 +1,5 @@
 import { chatService } from '../services/chatService.js';
+import { getIO } from '../config/socket.js';
 
 export const chatController = {
     async createChat(req, res) {
@@ -15,6 +16,20 @@ export const chatController = {
             }
 
             const chat = await chatService.createChat({ userIds, name, adminUserId });
+
+            // Emit to all participants
+            const io = getIO();
+            const socketId = req.headers['x-socket-id'];
+
+            chat.users.forEach(u => {
+                const room = `user_${u.userId}`;
+                if (u.userId === adminUserId && socketId) {
+                    io.to(room).except(socketId).emit('new_chat', chat);
+                } else {
+                    io.to(room).emit('new_chat', chat);
+                }
+            });
+
             res.status(200).send({ success: true, data: chat, error: null });
         } catch (error) {
             res.status(400).send({ success: false, data: null, error: error.message });

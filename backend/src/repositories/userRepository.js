@@ -58,5 +58,20 @@ export const userRepository = {
                 emailVerifiedAt: true
             }
         });
+    },
+
+    async findByIdMinimal(id) {
+        return await prisma.user.findUnique({
+            where: { id },
+            omit: {
+                privateKey: true,
+                password: true,
+                created_at: true,
+                updated_at: true,
+                last_seen: true,
+                isOnline: true,
+                emailVerifiedAt: true
+            }
+        });
     }
 };

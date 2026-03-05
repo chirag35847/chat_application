@@ -9,6 +9,7 @@ router.post('/login', userController.login);
 router.post('/refresh', userController.refresh);
 router.post('/logout', authMiddleware, userController.logout);
 router.get('/search', authMiddleware, userController.search);
+router.get('/me', authMiddleware, userController.getProfile);
 
 
 

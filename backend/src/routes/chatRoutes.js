@@ -13,5 +13,6 @@ router.post('/', chatController.createChat);
 router.post('/block', chatController.blockChat);
 router.post('/message', upload.single('attachment'), messageController.sendMessage);
 router.get('/message', messageController.getMessages);
+router.post('/read', messageController.markAsRead);
 
 export default router;

@@ -107,6 +107,18 @@ export const userController = {
                 error: error.message
             });
         }
+    },
+
+    async getProfile(req, res) {
+        try {
+            const user = await userService.getProfile(req.user.userId);
+            if (!user) {
+                return res.status(404).json({ success: false, data: null, error: "User not found" });
+            }
+            res.status(200).json({ success: true, data: user, error: null });
+        } catch (error) {
+            res.status(500).json({ success: false, data: null, error: error.message });
+        }
     }
 };
 

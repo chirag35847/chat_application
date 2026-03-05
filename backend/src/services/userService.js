@@ -88,5 +88,9 @@ export const userService = {
 
     async searchUsers(query, excludeUserId) {
         return await userRepository.searchUsers(query, excludeUserId);
+    },
+
+    async getProfile(userId) {
+        return await userRepository.findByIdMinimal(userId);
     }
 };

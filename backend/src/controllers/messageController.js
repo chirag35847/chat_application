@@ -40,6 +40,29 @@ export const messageController = {
                 io.to(chatId).emit('receive_message', message);
             }
 
+            // Also emit to all participants' personal rooms for sidebar updates
+            try {
+                const { prisma } = await import('../config/prisma.js');
+                const chat = await prisma.chat.findUnique({
+                    where: { id: chatId },
+                    include: { users: { select: { userId: true } } }
+                });
+
+                if (chat) {
+                    chat.users.forEach(u => {
+                        const room = `user_${u.userId}`;
+                        // We emit to all participants. If they are in the chat room, they'll handle duplicates.
+                        if (u.userId === userId && socketId) {
+                            io.to(room).except(socketId).emit('receive_message', message);
+                        } else {
+                            io.to(room).emit('receive_message', message);
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error("Failed to emit sidebar updates:", err);
+            }
+
             res.status(200).json({ success: true, data: message, error: null });
         } catch (error) {
             let status = 500;
@@ -76,6 +99,22 @@ export const messageController = {
             let status = 500;
             if (error.message.includes('not a member')) status = 403;
             res.status(status).json({ success: false, data: null, error: error.message });
+        }
+    },
+
+    async markAsRead(req, res) {
+        try {
+            const { chatId } = req.body;
+            const userId = req.user.userId;
+
+            if (!chatId) {
+                return res.status(400).json({ success: false, data: null, error: "chatId is required" });
+            }
+
+            await messageService.markAsRead(chatId, userId);
+            res.status(200).json({ success: true, data: null, error: null });
+        } catch (error) {
+            res.status(500).json({ success: false, data: null, error: error.message });
         }
     }
 };

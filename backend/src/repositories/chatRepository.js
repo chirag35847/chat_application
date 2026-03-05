@@ -112,7 +112,7 @@ export const chatRepository = {
     },
 
     async findUserChats(userId) {
-        return await prisma.chat.findMany({
+        const chats = await prisma.chat.findMany({
             where: {
                 users: {
                     some: {
@@ -121,6 +121,20 @@ export const chatRepository = {
                 }
             },
             include: {
+                _count: {
+                    select: {
+                        messages: {
+                            where: {
+                                metadata: {
+                                    some: {
+                                        userId: userId,
+                                        status: 'UNREAD'
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 users: {
                     include: {
                         user: {
@@ -157,5 +171,10 @@ export const chatRepository = {
                 updated_at: 'desc'
             }
         });
+
+        return chats.map(chat => ({
+            ...chat,
+            unreadCount: chat._count.messages
+        }));
     }
 };

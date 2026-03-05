@@ -2,13 +2,27 @@ import { prisma } from '../config/prisma.js';
 
 export const messageRepository = {
     async createMessage({ encryptedText, blobLocation, chatId, senderId, messageType }) {
+        // Get all users in the chat to create metadata
+        const chat = await prisma.chat.findUnique({
+            where: { id: chatId },
+            include: { users: { select: { userId: true } } }
+        });
+
+        const otherUsers = chat.users.filter(u => u.userId !== senderId);
+
         const message = await prisma.message.create({
             data: {
                 text: encryptedText,
                 blob_location: blobLocation,
                 chat_id: chatId,
                 sender_id: senderId,
-                type: messageType
+                type: messageType,
+                metadata: {
+                    create: otherUsers.map(u => ({
+                        userId: u.userId,
+                        status: 'UNREAD'
+                    }))
+                }
             }
         });
 
@@ -21,6 +35,22 @@ export const messageRepository = {
                         username: true
                     }
                 }
+            }
+        });
+    },
+
+    async markMessagesAsRead(chatId, userId) {
+        return await prisma.userMessageMetadata.updateMany({
+            where: {
+                userId: userId,
+                message: {
+                    chat_id: chatId
+                },
+                status: 'UNREAD'
+            },
+            data: {
+                status: 'READ',
+                seenAt: new Date()
             }
         });
     },

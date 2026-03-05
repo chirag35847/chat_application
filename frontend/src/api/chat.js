@@ -5,8 +5,8 @@ export const getChats = async () => {
     return response.data;
 };
 
-export const createChat = async (userIds, name) => {
-    const response = await apiClient.post('/chat', { userIds, name });
+export const createChat = async (userIds, name, config = {}) => {
+    const response = await apiClient.post('/chat', { userIds, name }, config);
     return response.data;
 };
 
@@ -23,5 +23,9 @@ export const sendMessage = async (formData, config = {}) => {
             ...config.headers,
         },
     });
+    return response.data;
+};
+export const markAsRead = async (chatId) => {
+    const response = await apiClient.post('/chat/read', { chatId });
     return response.data;
 };

@@ -132,5 +132,9 @@ export const messageService = {
                 presignedUrl
             };
         }));
+    },
+
+    async markAsRead(chatId, userId) {
+        return await messageRepository.markMessagesAsRead(chatId, userId);
     }
 };

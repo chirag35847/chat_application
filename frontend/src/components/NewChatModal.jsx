@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { X, Search, UserPlus, Loader2, CheckCircle2, Circle, Users } from 'lucide-react';
 import { searchUsers } from '../api/user';
 import { createChat } from '../api/chat';
+import { useSocket } from '../context/SocketContext';
 
 const NewChatModal = ({ isOpen, onClose, onChatCreated }) => {
+    const socket = useSocket();
     const [searchTerm, setSearchTerm] = useState('');
     const [users, setUsers] = useState([]);
     const [selectedUsers, setSelectedUsers] = useState([]);
@@ -60,7 +62,15 @@ const NewChatModal = ({ isOpen, onClose, onChatCreated }) => {
         setCreating(true);
         try {
             const userIds = selectedUsers.map(u => u.id);
-            const response = await createChat(userIds, selectedUsers.length > 1 ? chatName : undefined);
+            const response = await createChat(
+                userIds,
+                selectedUsers.length > 1 ? chatName : undefined,
+                {
+                    headers: {
+                        'X-Socket-ID': socket?.id
+                    }
+                }
+            );
             if (response.success) {
                 onChatCreated(response.data);
                 onClose();
@@ -185,8 +195,8 @@ const NewChatModal = ({ isOpen, onClose, onChatCreated }) => {
                             onClick={handleCreateChat}
                             disabled={creating || (selectedUsers.length > 1 && !chatName.trim())}
                             className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg ${creating || (selectedUsers.length > 1 && !chatName.trim())
-                                    ? 'bg-[#3b4a54] text-[#8696a0] cursor-not-allowed'
-                                    : 'bg-[#00a884] text-white hover:bg-[#06cf9c] active:scale-[0.98]'
+                                ? 'bg-[#3b4a54] text-[#8696a0] cursor-not-allowed'
+                                : 'bg-[#00a884] text-white hover:bg-[#06cf9c] active:scale-[0.98]'
                                 }`}
                         >
                             {creating ? (
